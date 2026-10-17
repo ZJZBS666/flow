@@ -28,23 +28,43 @@ jobs:
         run: |
           xcodebuild -version
           echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "可用 Xcode:"
+          ls /Applications | grep -i xcode || true
 
       - name: 生成 Xcode 工程
-        run: xcodegen generate
+        run: |
+          xcodegen generate
+          echo "===== 工程里有哪些 scheme ====="
+          xcodebuild -list -project Flow.xcodeproj
 
       - name: 编译（关闭签名）
         run: |
-          set -euo pipefail
+          set -o pipefail
+
           xcodebuild build \
             -project Flow.xcodeproj \
             -scheme Flow \
             -configuration Release \
+            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath "$RUNNER_TEMP/dd" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            ENABLE_BITCODE=NO
+            CODE_SIGN_ENTITLEMENTS="" \
+            ENABLE_BITCODE=NO \
+            2>&1 | tee build.log
+
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            # 把错误摘要写进 GitHub 注解（注解公开可读，方便排查）
+            MSG=$(grep -iE "error:|fatal error|not found|failed|The following build commands" build.log | head -n 30 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            if [ -z "$MSG" ]; then
+              MSG=$(tail -n 30 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            fi
+            echo "::error title=xcodebuild 失败::${MSG}"
+            exit "$STATUS"
+          fi
 
       - name: 打包成 IPA
         run: |
@@ -53,6 +73,7 @@ jobs:
           if [ ! -d "$APP_PATH" ]; then
             echo "===== 没找到 Flow.app，产物目录如下 ====="
             find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 3
+            echo "::error title=找不到 Flow.app::产物目录里没有 Flow.app，见上方 find 输出"
             exit 1
           fi
 
