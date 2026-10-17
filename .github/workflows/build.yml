@@ -123,7 +123,9 @@ jobs:
                        echo "--- App 可执行文件大小 ---"; ls -lh "$APP_PATH/Flow" 2>/dev/null || true; \
                        echo "--- 小组件 ---"; ls -la "$APP_PATH/PlugIns" 2>/dev/null || echo "没有 PlugIns 目录"; \
                        echo "--- 小组件 Info.plist 关键字段 ---"; \
-                       plutil -p "$APP_PATH/PlugIns/FlowWidget.appex/Info.plist" 2>/dev/null | grep -iE "CFBundleIdentifier|NSExtensionPointIdentifier|MinimumOSVersion" || true ) \
+                       plutil -p "$APP_PATH/PlugIns/FlowWidget.appex/Info.plist" 2>/dev/null | grep -iE "CFBundleIdentifier|NSExtensionPointIdentifier|MinimumOSVersion|CFBundleShortVersionString|CFBundleVersion" || true; \
+                       echo "--- App Info.plist 版本 ---"; \
+                       plutil -p "$APP_PATH/Info.plist" 2>/dev/null | grep -iE "CFBundleShortVersionString|CFBundleVersion" || true ) \
                      | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3500)
           echo "::notice title=包内清单::${MANIFEST}"
 
