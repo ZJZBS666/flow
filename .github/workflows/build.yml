@@ -32,14 +32,17 @@ jobs:
           echo "可用 Xcode:"
           ls /Applications | grep -i xcode || true
 
+      # 注意：GitHub Actions 默认用 bash -e 执行，任何一行返回非 0 就会立刻退出，
+      # 后面的错误上报代码根本不会跑。所以每个可能失败的步骤都要先 set +e。
       - name: 生成 Xcode 工程
         run: |
           set +e
-          xcodegen generate 2>&1 | tee xcodegen.log
-          STATUS=${PIPESTATUS[0]}
+          xcodegen generate > xcodegen.log 2>&1
+          STATUS=$?
+          cat xcodegen.log
           if [ "$STATUS" -ne 0 ]; then
-            MSG=$(tail -n 60 xcodegen.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
-            echo "::error title=xcodegen 生成失败 (exit $STATUS)::${MSG}"
+            MSG=$(tail -n 20 xcodegen.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
+            echo "::error title=xcodegen 生成失败 exit=$STATUS::${MSG}"
             exit 1
           fi
           echo "===== 生成结果 ====="
@@ -47,15 +50,17 @@ jobs:
           echo "===== Flow.xcodeproj 内容 ====="
           find Flow.xcodeproj -maxdepth 2 | head -n 40
 
-      - name: 检查工程可读性（仅诊断，不阻断）
+      - name: 检查工程与 scheme（诊断信息写入注解）
         run: |
-          echo "===== xcodebuild -list 输出（失败也不影响后续）====="
-          xcodebuild -list -project Flow.xcodeproj 2>&1 | head -n 60 || true
+          set +e
+          xcodebuild -list -project Flow.xcodeproj > list.log 2>&1
+          cat list.log
+          MSG=$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' list.log | tr '\n' '|' | cut -c1-3000)
+          echo "::notice title=xcodebuild-list::${MSG}"
 
       - name: 编译（关闭签名）
         run: |
-          set -o pipefail
-
+          set +e
           xcodebuild build \
             -project Flow.xcodeproj \
             -scheme Flow \
@@ -68,27 +73,29 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
             ENABLE_BITCODE=NO \
-            2>&1 | tee build.log
+            > build.log 2>&1
+          STATUS=$?
+          tail -n 80 build.log
 
-          STATUS=${PIPESTATUS[0]}
           if [ "$STATUS" -ne 0 ]; then
-            # 把错误摘要写进 GitHub 注解（注解公开可读，方便排查）
-            MSG=$(grep -iE "error:|fatal error|not found|failed|The following build commands" build.log | head -n 30 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
-            if [ -z "$MSG" ]; then
-              MSG=$(tail -n 40 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            ERR=$(grep -iE "error:|fatal error|The following build commands|cannot find|does not contain" build.log | head -n 12 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
+            if [ -z "$ERR" ]; then
+              ERR=$(tail -n 12 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
             fi
-            echo "::error title=xcodebuild 失败 (exit $STATUS)::${MSG}"
+            echo "::error title=xcodebuild 失败 exit=$STATUS::${ERR}"
             exit "$STATUS"
           fi
+          echo "编译成功"
 
       - name: 打包成 IPA
         run: |
-          set -euo pipefail
+          set +e
           APP_PATH="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/Flow.app"
           if [ ! -d "$APP_PATH" ]; then
             echo "===== 没找到 Flow.app，产物目录如下 ====="
             find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 3
-            echo "::error title=找不到 Flow.app::产物目录里没有 Flow.app，见上方 find 输出"
+            MSG=$(find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 3 | tr '\n' '|' | cut -c1-3000)
+            echo "::error title=找不到 Flow.app::${MSG}"
             exit 1
           fi
 
