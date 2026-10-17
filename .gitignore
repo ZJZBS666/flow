@@ -1,0 +1,9 @@
+build/
+DerivedData/
+xcuserdata/
+*.xcuserdatad/
+Flow.xcodeproj/
+Flow/Generated/
+.DS_Store
+*.ipa
+Payload/

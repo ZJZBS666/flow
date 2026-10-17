@@ -1,0 +1,81 @@
+name: Build Flow (unsigned IPA)
+
+# 这个工作流只做一件事：在云端 Mac 上把 Swift 代码编译成 Flow-unsigned.ipa
+# 不做签名 —— 签名由你在 Windows 上用签名工具完成。
+#
+# 用法：GitHub 仓库页面 → Actions → 左边选 "Build Flow (unsigned IPA)"
+#       → 右边 "Run workflow" → 等 3~5 分钟 → 下载 Flow-unsigned-ipa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: 编译未签名 IPA
+    runs-on: macos-14
+    timeout-minutes: 40
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 显示编译环境
+        run: |
+          xcodebuild -version
+          echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
+      - name: 生成 Xcode 工程
+        run: xcodegen generate
+
+      - name: 编译（关闭签名）
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project Flow.xcodeproj \
+            -scheme Flow \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ENABLE_BITCODE=NO
+
+      - name: 打包成 IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/Flow.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "===== 没找到 Flow.app，产物目录如下 ====="
+            find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 3
+            exit 1
+          fi
+
+          echo "===== App 内容 ====="
+          ls -la "$APP_PATH"
+          echo "===== 内嵌的小组件扩展 ====="
+          ls -la "$APP_PATH/PlugIns" || true
+
+          rm -rf output
+          mkdir -p output/Payload
+          cp -R "$APP_PATH" output/Payload/
+
+          cd output
+          zip -qry Flow-unsigned.ipa Payload
+          cd ..
+
+          ls -lh output
+          echo "IPA 大小：$(du -h output/Flow-unsigned.ipa | cut -f1)"
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Flow-unsigned-ipa
+          path: output/Flow-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 90
