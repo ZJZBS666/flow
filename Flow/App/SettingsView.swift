@@ -15,6 +15,16 @@ struct SettingsView: View {
         NavigationStack {
             List {
 
+                // ---------- 外观 ----------
+                Section("外观") {
+                    Picker("外观", selection: $store.appearance) {
+                        ForEach(Appearance.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
                 // ---------- 主题颜色 ----------
                 Section("主题颜色") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8.5), count: 8),
@@ -69,6 +79,34 @@ struct SettingsView: View {
                     Toggle("圆环总览", isOn: $store.showRing)
                     Toggle("年 / 月 / 周 / 日", isOn: $store.showRows)
                     Toggle("圆点网格", isOn: $store.showGrid)
+                }
+
+                // ---------- 关于 ----------
+                Section {
+                    Link(destination: URL(string: "https://github.com/ZJZBS666/flow")!) {
+                        HStack {
+                            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("ZJZBS666")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(.primary)
+                                Text("github.com/ZJZBS666/flow")
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                } header: {
+                    Text("项目")
+                } footer: {
+                    Text("点击打开 GitHub 仓库")
                 }
 
                 Section {

@@ -22,9 +22,15 @@ public final class FlowStore: ObservableObject {
         static let showRing = "showRing"
         static let showRows = "showRows"
         static let showGrid = "showGrid"
+        static let appearance = "appearance"
     }
 
     // MARK: - 设置项
+
+    /// 外观：浅色 / 深色 / 跟随系统
+    @Published public var appearance: Appearance {
+        didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
+    }
 
     /// 主题色，十六进制字符串，如 "#FC8E03"
     @Published public var accentHex: String {
@@ -64,6 +70,7 @@ public final class FlowStore: ObservableObject {
         showRing = defaults.object(forKey: Key.showRing) as? Bool ?? true
         showRows = defaults.object(forKey: Key.showRows) as? Bool ?? true
         showGrid = defaults.object(forKey: Key.showGrid) as? Bool ?? true
+        appearance = Appearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
     }
 
     /// 通知小组件刷新
@@ -75,6 +82,43 @@ public final class FlowStore: ObservableObject {
 
     public var accentColor: Color {
         Color(hex: accentHex) ?? Color(red: 252/255, green: 142/255, blue: 3/255)
+    }
+}
+
+// MARK: - 外观
+
+/// 外观模式。存的是字符串，方便 UserDefaults 持久化。
+public enum Appearance: String, CaseIterable, Identifiable {
+    case system     // 跟随系统
+    case light      // 浅色
+    case dark       // 深色
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .system: return "跟随系统"
+        case .light:  return "浅色"
+        case .dark:   return "深色"
+        }
+    }
+
+    /// 交给 SwiftUI 的 preferredColorScheme；nil 表示跟随系统
+    public var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+
+    /// 交给 UIKit 的 overrideUserInterfaceStyle，用于小组件预览等场景
+    public var userInterfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .system: return .unspecified
+        case .light:  return .light
+        case .dark:   return .dark
+        }
     }
 }
 
