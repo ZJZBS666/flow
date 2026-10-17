@@ -18,11 +18,11 @@ struct RootView: View {
             content(now: timeline.date)
         }
         .sheet(isPresented: $showSettings) {
+            // 外观不再用 preferredColorScheme 指：那是「瞬间切换」的。
+            // 现在由 AppearanceApplier 改整个窗口的 overrideUserInterfaceStyle，
+            // 设置页也在这个窗口里，所以会跟着一起平滑过渡。
             SettingsView()
                 .environmentObject(store)
-                // 弹层是独立的一层展示，保险起见再指一次，
-                // 否则用户在设置里切外观时设置页本身可能不跟着变
-                .preferredColorScheme(store.appearance.colorScheme)
         }
     }
 

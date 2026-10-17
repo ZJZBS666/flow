@@ -11,6 +11,11 @@ struct SettingsView: View {
         "#34D399", "#38BDF8", "#A78BFA", "#8E8E93"
     ]
 
+    /// 从工程配置里读版本号，以后改 project.yml 就行，这里不用再动
+    private static var versionString: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -112,7 +117,7 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Spacer()
-                        Text("Flow 1.0.0")
+                        Text("Flow v\(Self.versionString)")
                             .font(.system(size: 11))
                             .foregroundStyle(.tertiary)
                         Spacer()
