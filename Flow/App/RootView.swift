@@ -20,6 +20,9 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(store)
+                // 弹层是独立的一层展示，保险起见再指一次，
+                // 否则用户在设置里切外观时设置页本身可能不跟着变
+                .preferredColorScheme(store.appearance.colorScheme)
         }
     }
 
