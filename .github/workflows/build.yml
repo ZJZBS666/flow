@@ -14,7 +14,10 @@ on:
 jobs:
   build:
     name: 编译未签名 IPA
-    runs-on: macos-14
+    # 注意：macos-14 镜像只有 Xcode 15.4，而最新版 XcodeGen 生成的是
+    # Xcode 16 格式（objectVersion 77）的工程，Xcode 15.4 打不开。
+    # 所以必须用 macos-15 镜像（自带 Xcode 16.x）。
+    runs-on: macos-15
     timeout-minutes: 40
 
     steps:

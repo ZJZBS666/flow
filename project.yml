@@ -6,6 +6,10 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
   groupSortPosition: top
+  # 固定生成 Xcode 15 兼容格式的工程文件。
+  # 不写这行的话，XcodeGen 新版会生成 objectVersion 77（Xcode 16 格式），
+  # 老版本 Xcode 打不开。
+  xcodeVersion: "15.0"
 
 settings:
   base:
