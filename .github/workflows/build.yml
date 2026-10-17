@@ -28,14 +28,29 @@ jobs:
         run: |
           xcodebuild -version
           echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "xcodegen: $(xcodegen --version 2>&1 || true)"
           echo "可用 Xcode:"
           ls /Applications | grep -i xcode || true
 
       - name: 生成 Xcode 工程
         run: |
-          xcodegen generate
-          echo "===== 工程里有哪些 scheme ====="
-          xcodebuild -list -project Flow.xcodeproj
+          set +e
+          xcodegen generate 2>&1 | tee xcodegen.log
+          STATUS=${PIPESTATUS[0]}
+          if [ "$STATUS" -ne 0 ]; then
+            MSG=$(tail -n 60 xcodegen.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=xcodegen 生成失败 (exit $STATUS)::${MSG}"
+            exit 1
+          fi
+          echo "===== 生成结果 ====="
+          ls -la
+          echo "===== Flow.xcodeproj 内容 ====="
+          find Flow.xcodeproj -maxdepth 2 | head -n 40
+
+      - name: 检查工程可读性（仅诊断，不阻断）
+        run: |
+          echo "===== xcodebuild -list 输出（失败也不影响后续）====="
+          xcodebuild -list -project Flow.xcodeproj 2>&1 | head -n 60 || true
 
       - name: 编译（关闭签名）
         run: |
@@ -60,9 +75,9 @@ jobs:
             # 把错误摘要写进 GitHub 注解（注解公开可读，方便排查）
             MSG=$(grep -iE "error:|fatal error|not found|failed|The following build commands" build.log | head -n 30 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
             if [ -z "$MSG" ]; then
-              MSG=$(tail -n 30 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
+              MSG=$(tail -n 40 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | awk '{printf "%s%%0A", $0}')
             fi
-            echo "::error title=xcodebuild 失败::${MSG}"
+            echo "::error title=xcodebuild 失败 (exit $STATUS)::${MSG}"
             exit "$STATUS"
           fi
 
