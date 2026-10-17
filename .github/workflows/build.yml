@@ -118,6 +118,15 @@ jobs:
           ls -lh output
           echo "IPA 大小：$(du -h output/Flow-unsigned.ipa | cut -f1)"
 
+          # 把包内清单写进注解，方便在网页上直接核对（不依赖读日志）
+          MANIFEST=$( (echo "--- Payload 结构 ---"; find output/Payload -maxdepth 4 | sed "s|output/Payload/||" | head -n 40; \
+                       echo "--- App 可执行文件大小 ---"; ls -lh "$APP_PATH/Flow" 2>/dev/null || true; \
+                       echo "--- 小组件 ---"; ls -la "$APP_PATH/PlugIns" 2>/dev/null || echo "没有 PlugIns 目录"; \
+                       echo "--- 小组件 Info.plist 关键字段 ---"; \
+                       plutil -p "$APP_PATH/PlugIns/FlowWidget.appex/Info.plist" 2>/dev/null | grep -iE "CFBundleIdentifier|NSExtensionPointIdentifier|MinimumOSVersion" || true ) \
+                     | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3500)
+          echo "::notice title=包内清单::${MANIFEST}"
+
       - name: 上传 IPA
         uses: actions/upload-artifact@v4
         with:
