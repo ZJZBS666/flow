@@ -133,8 +133,8 @@ public struct DotGrid: View {
                 let blockCol = blockIndex % perRow
                 let blockRow = blockIndex / perRow
 
-                let originCol = Double(blockCol) * (Double(blockCols) + gapUnits)
-                let originRow = Double(blockRow) * (Double(blockRows) + gapUnits)
+                let originCol = blockCol * (blockCols + gapUnits)
+                let originRow = blockRow * (blockRows + gapUnits)
 
                 guard let firstOfMonth = calendar.date(from: DateComponents(year: year, month: month, day: 1)),
                       let range = calendar.range(of: .day, in: .month, for: firstOfMonth)
@@ -150,14 +150,15 @@ public struct DotGrid: View {
 
                 for d in 0..<daysInMonth {
                     let slot = mondayIndex + d
-                    let col = Int(originCol) + slot % 7
-                    let row = Int(originRow) + slot / 7
+                    let col = originCol + slot % 7
+                    let row = originRow + slot / 7
                     dots.append(Dot(col: col, row: row, state: state(startDayIndex + d)))
                 }
             }
 
-            let unitCols = Int(Double(perRow) * (Double(blockCols) + gapUnits) - gapUnits)
-            let unitRows = Int(Double(blockRowsCount) * (Double(blockRows) + gapUnits) - gapUnits)
+            // 用整数运算，避免编译器在长表达式上超时
+            let unitCols = perRow * (blockCols + gapUnits) - gapUnits
+            let unitRows = blockRowsCount * (blockRows + gapUnits) - gapUnits
             return Cells(dots: dots, unitColumns: unitCols, unitRows: unitRows)
         }
     }
