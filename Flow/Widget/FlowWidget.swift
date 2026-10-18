@@ -137,7 +137,7 @@ struct FlowWidgetEntryView: View {
     /// 锁屏三种尺寸
     private var isAccessory: Bool {
         switch family {
-        case .accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner:
+        case .accessoryCircular, .accessoryRectangular, .accessoryInline:
             return true
         default:
             return false
@@ -171,10 +171,6 @@ struct FlowWidgetEntryView: View {
 
         case .accessoryInline:
             AccessoryInlineView(now: entry.date)
-
-        case .accessoryCorner:
-            // 表盘上的角落位（Apple Watch 才有），手机上用不到，给个最简版本兜底
-            AccessoryCircularView(now: entry.date, accent: store.accentColor)
 
         // ---------------- 桌面 ----------------
         case .systemSmall:
