@@ -351,20 +351,19 @@ private struct AccessoryCalendarRectangularView: View {
                             let isToday = cell.inMonth && cell.day == g.today
                             ZStack {
                                 if isToday {
-                                    // 白圆盖住，数字用 destinationOut 从圆上「挖」掉，
-                                    // 透出的是壁纸本身，不是画上去的颜色。
-                                    // 圆径 13.5 是「列宽 17.4 减去两侧留白」的上限：
-                                    // 再大就会和左右两格挤在一起，看着发闷。
-                                    // 数字上移 0.5pt 抵消字体下伸部造成的视觉偏下。
-                                    ZStack {
-                                        Circle().fill(.white)
-                                        Text(verbatim: String(cell.day))
-                                            .font(.system(size: 9.5, weight: .bold).monospacedDigit())
-                                            .offset(y: -0.5)
-                                            .blendMode(.destinationOut)
-                                    }
-                                    .compositingGroup()
-                                    .frame(width: 13.5, height: 13.5)
+                                    // 今天：数字加粗 + 下方一条白条。
+                                    // 白条用 offset 单独定位，不参与排版 —— 这样数字的
+                                    // 基线和上下邻居完全一致，不会因为多出一条白条而整体上移。
+                                    // y = 5.65 推算：数字笔画底在中心下方约 3.4pt，
+                                    // 加 1.5pt 间距，再加白条自身半个高度 0.75pt。
+                                    Text(verbatim: String(cell.day))
+                                        .font(.system(size: 9.5, weight: .bold).monospacedDigit())
+                                        .foregroundStyle(.primary)
+
+                                    Capsule()
+                                        .fill(.white)
+                                        .frame(width: 12, height: 1.5)
+                                        .offset(y: 5.65)
                                 } else {
                                     Text(verbatim: String(cell.day))
                                         .font(.system(size: 9.5).monospacedDigit())
