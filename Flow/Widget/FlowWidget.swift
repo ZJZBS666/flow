@@ -254,97 +254,114 @@ struct FlowWidget: Widget {
 
 // MARK: - Flow 日历（第二种锁屏组件）
 
-/// 当月日历网格。
+/// 三周滚动窗口：上周 / 这周 / 下周，过一周就往前滚一周。
 ///
 /// 和 `FlowMath.calendar` 不同：这里**周日排第一列**（日一二三四五六），
 /// 跟 iPhone 自带日历锁屏组件一致。`FlowMath.calendar` 是周一开头，
 /// 那是给「年度日历排列」用的，两处需求不一样，别混。
-private struct MonthGrid {
+private struct ThreeWeekGrid {
+    struct Cell {
+        let day: Int
+        /// 是否属于当前月份。跨月的日子照常显示，只是淡化，不然月初/月末那行会空一片。
+        let inMonth: Bool
+    }
+
     let headers = ["日", "一", "二", "三", "四", "五", "六"]
-    let weeks: [[Int?]]
+    let rows: [[Cell]]
     let today: Int
+    let year: Int
     let month: Int
 
     init(now: Date) {
         let cal = FlowMath.calendar
-        let first = cal.date(from: DateComponents(year: cal.component(.year, from: now),
-                                                  month: cal.component(.month, from: now),
-                                                  day: 1)) ?? now
-        let dayCount = cal.range(of: .day, in: .month, for: first)?.count ?? 30
+        let startOfToday = cal.startOfDay(for: now)
         // Calendar.component(.weekday) 不受 firstWeekday 影响：1 = 周日 … 7 = 周六
-        let weekdayOfFirst = cal.component(.weekday, from: first)
-        let lead = weekdayOfFirst - 1
+        let weekday = cal.component(.weekday, from: now)
+        let thisWeekSunday = cal.date(byAdding: .day, value: -(weekday - 1), to: startOfToday) ?? startOfToday
+        let thisMonth = cal.component(.month, from: now)
 
-        var flat: [Int?] = Array(repeating: nil, count: lead)
-        flat.append(contentsOf: (1...dayCount).map { Optional($0) })
-        while flat.count % 7 != 0 { flat.append(nil) }
-
-        var result: [[Int?]] = []
-        var i = 0
-        while i < flat.count {
-            result.append(Array(flat[i..<min(i + 7, flat.count)]))
-            i += 7
+        var built: [[Cell]] = []
+        for weekOffset in -1...1 {
+            let weekStart = cal.date(byAdding: .day, value: weekOffset * 7, to: thisWeekSunday) ?? thisWeekSunday
+            var row: [Cell] = []
+            for dayOffset in 0..<7 {
+                let date = cal.date(byAdding: .day, value: dayOffset, to: weekStart) ?? weekStart
+                let day = cal.component(.day, from: date)
+                let monthOfDay = cal.component(.month, from: date)
+                row.append(Cell(day: day, inMonth: monthOfDay == thisMonth))
+            }
+            built.append(row)
         }
 
-        weeks = result
+        rows = built
         today = cal.component(.day, from: now)
-        month = cal.component(.month, from: now)
+        year = cal.component(.year, from: now)
+        month = thisMonth
     }
 }
 
-/// 锁屏长方形 · 日历版：左边大号日号，右边当月小日历，今天加一个圈。
+/// 锁屏长方形 · 日历版：左上角年份，左下月份 + 大号日号，右边只铺上周/这周/下周。
 private struct AccessoryCalendarRectangularView: View {
     let now: Date
     let accent: Color
 
-    private var grid: MonthGrid { MonthGrid(now: now) }
-
     var body: some View {
-        let g = grid
+        let g = ThreeWeekGrid(now: now)
 
-        HStack(alignment: .center, spacing: 9) {
-            // 左边：大号日号
-            VStack(spacing: -2) {
+        HStack(alignment: .top, spacing: 9) {
+            // 左边：年份在最上面，月份紧贴日号上方，日号靠 Spacer 压到下面
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(g.year)")
+                    .font(.system(size: 7).monospacedDigit())
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 1)
+
+                Text("\(g.month)月")
+                    .font(.system(size: 7).monospacedDigit())
+                    .foregroundStyle(.secondary)
+
                 Text("\(g.today)")
-                    .font(.system(size: 27, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
                     .widgetAccentable()
-                Text("\(g.month)月")
-                    .font(.system(size: 7))
-                    .foregroundStyle(.secondary)
             }
-            .frame(width: 30)
+            .frame(width: 32, alignment: .leading)
 
-            // 右边：当月日历格
-            VStack(spacing: 0.5) {
+            // 右边：三周，今天用实心圆盖住、数字反白为黑
+            VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     ForEach(g.headers, id: \.self) { h in
                         Text(h)
-                            .font(.system(size: 6.5))
+                            .font(.system(size: 7))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                     }
                 }
+                .frame(height: 11)
 
-                ForEach(g.weeks.indices, id: \.self) { rowIndex in
+                ForEach(g.rows.indices, id: \.self) { rowIndex in
                     HStack(spacing: 0) {
                         ForEach(0..<7, id: \.self) { colIndex in
-                            let day = g.weeks[rowIndex][colIndex]
+                            let cell = g.rows[rowIndex][colIndex]
+                            let isToday = cell.inMonth && cell.day == g.today
                             ZStack {
-                                if let day = day {
-                                    if day == g.today {
-                                        Circle()
-                                            .strokeBorder(accent, lineWidth: 1)
-                                            .widgetAccentable()
-                                    }
-                                    Text("\(day)")
-                                        .font(.system(size: 7.5, weight: day == g.today ? .bold : .regular)
-                                            .monospacedDigit())
+                                if isToday {
+                                    Circle()
+                                        .fill(accent)
+                                        .frame(width: 12, height: 12)
+                                        .widgetAccentable()
                                 }
+                                Text("\(cell.day)")
+                                    .font(.system(size: 8.5, weight: isToday ? .bold : .regular)
+                                        .monospacedDigit())
+                                    .foregroundStyle(isToday
+                                                     ? Color.black
+                                                     : (cell.inMonth ? Color.primary : Color.secondary.opacity(0.5)))
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 9)
+                            .frame(height: 13)
                         }
                     }
                 }
@@ -415,7 +432,7 @@ struct FlowCalendarWidget: Widget {
             FlowCalendarEntryView(entry: entry)
         }
         .configurationDisplayName("Flow 日历")
-        .description("锁屏上显示当月日历，今天带一个圈。")
+        .description("只显示上周、这周、下周三周，今天用底色标出。")
         .supportedFamilies([.accessoryRectangular, .accessoryCircular])
     }
 }

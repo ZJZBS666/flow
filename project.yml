@@ -13,8 +13,8 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "1.0.4"
-    CURRENT_PROJECT_VERSION: "5"
+    MARKETING_VERSION: "1.0.5"
+    CURRENT_PROJECT_VERSION: "6"
     SWIFT_VERSION: "5.0"
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
     ALWAYS_SEARCH_USER_PATHS: "NO"
@@ -46,8 +46,8 @@ targets:
       path: Flow/Generated/AppInfo.plist
       properties:
         CFBundleDisplayName: Flow
-        CFBundleShortVersionString: "1.0.4"
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: "1.0.5"
+        CFBundleVersion: "6"
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: LaunchBackground
@@ -78,8 +78,8 @@ targets:
       path: Flow/Generated/WidgetInfo.plist
       properties:
         CFBundleDisplayName: Flow
-        CFBundleShortVersionString: "1.0.4"
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: "1.0.5"
+        CFBundleVersion: "6"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
