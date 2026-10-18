@@ -300,46 +300,49 @@ private struct ThreeWeekGrid {
     }
 }
 
-/// 锁屏长方形 · 日历版：左上角年份，左下月份 + 大号日号，右边只铺上周/这周/下周。
+/// 锁屏长方形 · 日历版：左边 年份 / 月份 / 大号日号，右边只铺上周、这周、下周。
+///
+/// 所有数字都用 `Text(verbatim:)`：`Text("\(int)")` 走的是 `LocalizedStringKey`
+/// 的数字插值，会按区域设置加千位分隔符 —— 年份 2026 会被显示成 “2,026”。
 private struct AccessoryCalendarRectangularView: View {
     let now: Date
-    let accent: Color
 
     var body: some View {
         let g = ThreeWeekGrid(now: now)
 
-        HStack(alignment: .top, spacing: 9) {
-            // 左边：年份在最上面，月份紧贴日号上方，日号靠 Spacer 压到下面
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(g.year)")
-                    .font(.system(size: 7).monospacedDigit())
+        HStack(alignment: .center, spacing: 8) {
+
+            // 左边一列：三行共用同一条竖直轴心（居中，不靠左，避免字形左边距造成的错位）
+            VStack(spacing: 0) {
+                Text(verbatim: String(g.year))
+                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.secondary)
 
-                Spacer(minLength: 1)
+                Spacer(minLength: 2)
 
-                Text("\(g.month)月")
-                    .font(.system(size: 7).monospacedDigit())
+                Text(verbatim: "\(g.month)月")
+                    .font(.system(size: 8).monospacedDigit())
                     .foregroundStyle(.secondary)
 
-                Text("\(g.today)")
-                    .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
+                Text(verbatim: String(g.today))
+                    .font(.system(size: 27, weight: .bold, design: .rounded).monospacedDigit())
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
-                    .widgetAccentable()
             }
-            .frame(width: 32, alignment: .leading)
+            .frame(width: 38)
+            .frame(maxHeight: .infinity)
 
-            // 右边：三周，今天用实心圆盖住、数字反白为黑
+            // 右边：表头 + 三周，行高按可用高度均分，撑满上下
             VStack(spacing: 0) {
                 HStack(spacing: 0) {
                     ForEach(g.headers, id: \.self) { h in
                         Text(h)
-                            .font(.system(size: 7))
+                            .font(.system(size: 8))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .frame(height: 11)
+                .frame(height: 10)
 
                 ForEach(g.rows.indices, id: \.self) { rowIndex in
                     HStack(spacing: 0) {
@@ -349,30 +352,30 @@ private struct AccessoryCalendarRectangularView: View {
                             ZStack {
                                 if isToday {
                                     // 白圆盖住，数字用 destinationOut 从圆上「挖」掉，
-                                    // 这样透过数字看到的是壁纸本身，不是画上去的颜色。
+                                    // 透出的是壁纸本身，不是画上去的颜色。
                                     ZStack {
                                         Circle().fill(.white)
-                                        Text("\(cell.day)")
-                                            .font(.system(size: 8.5, weight: .bold).monospacedDigit())
+                                        Text(verbatim: String(cell.day))
+                                            .font(.system(size: 9.5, weight: .bold).monospacedDigit())
                                             .blendMode(.destinationOut)
                                     }
                                     .compositingGroup()
-                                    .frame(width: 12, height: 12)
+                                    .frame(width: 14, height: 14)
                                 } else {
-                                    Text("\(cell.day)")
-                                        .font(.system(size: 8.5).monospacedDigit())
+                                    Text(verbatim: String(cell.day))
+                                        .font(.system(size: 9.5).monospacedDigit())
                                         .foregroundStyle(cell.inMonth
                                                          ? Color.primary
-                                                         : Color.secondary.opacity(0.5))
+                                                         : Color.secondary.opacity(0.45))
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 13)
                         }
                     }
+                    .frame(maxHeight: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -387,13 +390,13 @@ private struct AccessoryCalendarCircularView: View {
         let month = cal.component(.month, from: now)
 
         VStack(spacing: -1) {
-            Text("\(day)")
+            Text(verbatim: String(day))
                 .font(.system(size: 20, weight: .bold, design: .rounded).monospacedDigit())
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
                 .widgetAccentable()
-            Text("\(month)月")
-                .font(.system(size: 7))
+            Text(verbatim: "\(month)月")
+                .font(.system(size: 7).monospacedDigit())
                 .foregroundStyle(.secondary)
         }
     }
@@ -420,11 +423,11 @@ struct FlowCalendarEntryView: View {
     private var content: some View {
         switch family {
         case .accessoryRectangular:
-            AccessoryCalendarRectangularView(now: entry.date, accent: FlowStore.shared.accentColor)
+            AccessoryCalendarRectangularView(now: entry.date)
         case .accessoryCircular:
             AccessoryCalendarCircularView(now: entry.date)
         default:
-            AccessoryCalendarRectangularView(now: entry.date, accent: FlowStore.shared.accentColor)
+            AccessoryCalendarRectangularView(now: entry.date)
         }
     }
 }
