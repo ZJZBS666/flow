@@ -44,22 +44,139 @@ struct FlowProvider: TimelineProvider {
     }
 }
 
+// MARK: - 锁屏专用的三个尺寸
+
+/// 锁屏圆形：一个环 + 百分比。
+///
+/// 这里**故意不放圆点网格**：锁屏圆形大概只有 50pt 宽，365 个点塞进去就是一团灰，
+/// 和当初 App 图标犯的错是同一个。宁可只给一个数字。
+private struct AccessoryCircularView: View {
+    let now: Date
+    let accent: Color
+
+    private var progress: Double { FlowMath.yearProgress(now: now) }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.primary.opacity(0.20), lineWidth: 5)
+
+            Circle()
+                .trim(from: 0, to: max(0.001, min(1, progress)))
+                .stroke(accent,
+                        style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .widgetAccentable()
+
+            Text("\(Int((progress * 100).rounded()))%")
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .widgetAccentable()
+        }
+        .padding(3)
+    }
+}
+
+/// 锁屏长方形：标题 + 一条细进度 + 剩余天数。
+private struct AccessoryRectangularView: View {
+    let now: Date
+    let accent: Color
+
+    private var progress: Double { FlowMath.yearProgress(now: now) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(FlowMath.yearLabel(now: now))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Text(FlowMath.percent(progress))
+                    .font(.system(size: 15, weight: .bold, design: .rounded).monospacedDigit())
+                    .widgetAccentable()
+                Spacer(minLength: 0)
+            }
+
+            // 细进度条：锁屏上主色会被系统压成单色，所以这里只用主色 + 半透明底
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.20))
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: max(3, geo.size.width * min(1, max(0, progress))))
+                        .widgetAccentable()
+                }
+            }
+            .frame(height: 4)
+
+            Text("还剩 \(FlowMath.daysRemaining(now: now)) 天")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 2)
+    }
+}
+
+/// 锁屏单行：时间旁边的一行字。
+private struct AccessoryInlineView: View {
+    let now: Date
+
+    var body: some View {
+        Text("今年 \(FlowMath.percent(FlowMath.yearProgress(now: now)))　还剩 \(FlowMath.daysRemaining(now: now)) 天")
+    }
+}
+
+// MARK: - 入口视图
+
 struct FlowWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
     var entry: FlowEntry
 
     private var store: FlowStore { FlowStore.shared }
 
+    /// 锁屏三种尺寸
+    private var isAccessory: Bool {
+        switch family {
+        case .accessoryCircular, .accessoryRectangular, .accessoryInline, .accessoryCorner:
+            return true
+        default:
+            return false
+        }
+    }
+
     var body: some View {
         content
             .containerBackground(for: .widget) {
-                Color(.secondarySystemGroupedBackground)
+                if family == .accessoryCircular {
+                    // 圆形那个有底色圆盘，用系统的半透明材质才和锁屏一致
+                    AccessoryWidgetBackground()
+                } else if isAccessory {
+                    Color.clear
+                } else {
+                    Color(.secondarySystemGroupedBackground)
+                }
             }
     }
 
     @ViewBuilder
     private var content: some View {
         switch family {
+
+        // ---------------- 锁屏 ----------------
+        case .accessoryCircular:
+            AccessoryCircularView(now: entry.date, accent: store.accentColor)
+
+        case .accessoryRectangular:
+            AccessoryRectangularView(now: entry.date, accent: store.accentColor)
+
+        case .accessoryInline:
+            AccessoryInlineView(now: entry.date)
+
+        case .accessoryCorner:
+            // 表盘上的角落位（Apple Watch 才有），手机上用不到，给个最简版本兜底
+            AccessoryCircularView(now: entry.date, accent: store.accentColor)
+
+        // ---------------- 桌面 ----------------
         case .systemSmall:
             DotGrid(layout: store.gridLayout,
                     accent: store.accentColor,
@@ -127,8 +244,13 @@ struct FlowWidget: Widget {
             FlowWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Flow")
-        .description("用圆点看这一年过去了多少。")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .description("用圆点看这一年过去了多少。支持桌面与锁屏。")
+        .supportedFamilies([
+            // 桌面
+            .systemSmall, .systemMedium, .systemLarge,
+            // 锁屏
+            .accessoryCircular, .accessoryRectangular, .accessoryInline
+        ])
         .contentMarginsDisabled()
     }
 }
