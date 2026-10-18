@@ -13,13 +13,19 @@ struct RootView: View {
     @State private var showSettings = false
 
     var body: some View {
-        // 每秒刷新一次，秒数变化时圆环和百分比会平滑推进
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+        // 每分钟整点刷新一次。
+        //
+        // 原来是一秒一次。但界面上最小的时间刻度是「今天」那行的整数百分比
+        // —— 一天 1440 分钟，1% 就是 14.4 分钟；大圆环的弧长一秒只挪 0.0000032 圈，
+        // 肉眼完全看不见。也就是说每秒重算一次纯属白烧，
+        // 而切深色/浅色那一下正好可能撞上一次重算。改成每分钟既能省掉 60 倍的开销，
+        // 显示上又没有任何区别。
+        TimelineView(.everyMinute) { timeline in
             content(now: timeline.date)
         }
         .sheet(isPresented: $showSettings) {
-            // 外观不再用 preferredColorScheme 指：那是「瞬间切换」的。
-            // 现在由 AppearanceApplier 改整个窗口的 overrideUserInterfaceStyle，
+            // 外观不用 preferredColorScheme：那是「瞬间切换」的。
+            // 现在由 AppearanceTransition 改整个窗口的 overrideUserInterfaceStyle，
             // 设置页也在这个窗口里，所以会跟着一起平滑过渡。
             SettingsView()
                 .environmentObject(store)

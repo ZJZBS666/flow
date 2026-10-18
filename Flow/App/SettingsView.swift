@@ -165,13 +165,16 @@ private struct LayoutCard: View {
         .frame(maxWidth: .infinity)
         .frame(height: 116)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: FlowRadius.tile, style: .continuous)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: FlowRadius.tile, style: .continuous)
                 .strokeBorder(selected ? accent : .clear, lineWidth: 2)
         }
+        .contentShape(
+            RoundedRectangle(cornerRadius: FlowRadius.tile, style: .continuous)
+        )
     }
 }
 

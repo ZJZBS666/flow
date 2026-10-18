@@ -57,6 +57,7 @@ public struct ProgressRow: View {
                 }
                 .frame(height: 7.5)
                 .frame(maxHeight: .infinity, alignment: .center)
+                .animation(.easeInOut(duration: 0.5), value: progress)
             }
             .frame(height: 20)
 

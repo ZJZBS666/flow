@@ -2,7 +2,17 @@ import SwiftUI
 import UIKit
 
 /// 一年 365 颗圆点的网格。
-/// 用 Canvas 绘制，365 个圆一次画完，性能没有压力。
+///
+/// 性能上有两个关键处理，都是为了「深色/浅色切换时不卡」：
+///
+/// 1. **排布按年缓存**。365 颗点的 (列, 行) 只跟「哪一年 + 几列 + 几个月一行」有关，
+///    跟今天几号无关。所以缓存的 `Cell` 里只存「这是今年的第几天」，颜色在绘制时
+///    拿它跟今天比一下就有了。也就是说这套排布一年才算一次，不是每秒算一次。
+///    （原来每次重绘都跑 12 个月 × 每月日数/首日星期/年内偏移，切外观时正好赶上
+///    整棵树重建，那几十毫秒就表现成卡顿。）
+///
+/// 2. **按颜色合并成 3 条 Path**。365 次 `context.fill` 变成 3 次 fill，
+///    每次处理一批椭圆。绘制调用少了两个数量级。
 public struct DotGrid: View {
 
     public let layout: GridLayout
@@ -35,9 +45,9 @@ public struct DotGrid: View {
 
     public var body: some View {
         Canvas { context, size in
-            let cells = Self.layoutCells(
+            let cells = Self.cachedCells(
                 layout: layout,
-                now: now,
+                year: FlowMath.calendar.component(.year, from: now),
                 sequentialColumns: sequentialColumns,
                 monthsPerRow: monthsPerRow
             )
@@ -53,66 +63,97 @@ public struct DotGrid: View {
             let originY = (size.height - gridH) / 2
 
             let diameter = max(0.8, unit * dotScale)
+            let radius = diameter / 2
             let pastColor = colorPastDots ? accent : Color.primary.opacity(0.92)
             let futureColor = Color.primary.opacity(0.13)
+            let todayIdx = FlowMath.todayIndex(now: now)
+
+            // 三条 Path 分别收「已过 / 今天 / 未到」，最后各 fill 一次
+            var pastPath = Path()
+            var todayPath = Path()
+            var futurePath = Path()
 
             for dot in cells.dots {
                 let cx = originX + (CGFloat(dot.col) + 0.5) * unit
                 let cy = originY + (CGFloat(dot.row) + 0.5) * unit
-                let rect = CGRect(x: cx - diameter / 2,
-                                  y: cy - diameter / 2,
-                                  width: diameter,
-                                  height: diameter)
-                let color: Color
-                switch dot.state {
-                case .past:   color = pastColor
-                case .today:  color = accent
-                case .future: color = futureColor
+                let rect = CGRect(x: cx - radius, y: cy - radius,
+                                  width: diameter, height: diameter)
+
+                if dot.day < todayIdx {
+                    pastPath.addEllipse(in: rect)
+                } else if dot.day == todayIdx {
+                    todayPath.addEllipse(in: rect)
+                } else {
+                    futurePath.addEllipse(in: rect)
                 }
-                context.fill(Path(ellipseIn: rect), with: .color(color))
             }
+
+            context.fill(pastPath, with: .color(pastColor))
+            context.fill(futurePath, with: .color(futureColor))
+            context.fill(todayPath, with: .color(accent))
         }
         .accessibilityLabel("\(FlowMath.dayCounterLabel(now: now))，今年进度 \(FlowMath.percent(FlowMath.yearProgress(now: now)))")
     }
 
-    // MARK: - 排布计算
+    // MARK: - 排布计算（按年缓存）
 
-    struct Dot {
+    /// 一颗点：在网格里的位置 + 它是今年的第几天（0 起算）。不含颜色。
+    struct Cell {
         let col: Int
         let row: Int
-        let state: FlowMath.DotState
+        let day: Int
     }
 
     struct Cells {
-        var dots: [Dot]
+        var dots: [Cell]
         var unitColumns: Int
         var unitRows: Int
     }
 
+    /// 缓存。键 = 排列方式 + 年份 + 列数 + 每行月数。
+    /// 正常情况下只有 1~2 条（App 一条、小组件的几种尺寸各一条）。
+    private static var cellsCache: [String: Cells] = [:]
+    private static var cellsCacheKeys: [String] = []
+    private static let cellsCacheLimit = 8
+
+    static func cachedCells(layout: GridLayout,
+                            year: Int,
+                            sequentialColumns: Int,
+                            monthsPerRow: Int) -> Cells {
+        let key = "\(layout.rawValue)-\(year)-\(sequentialColumns)-\(monthsPerRow)"
+        if let hit = cellsCache[key] { return hit }
+
+        let made = layoutCells(layout: layout,
+                              year: year,
+                              sequentialColumns: sequentialColumns,
+                              monthsPerRow: monthsPerRow)
+
+        // 简单 FIFO，超过上限先丢最老的
+        if cellsCacheKeys.count >= cellsCacheLimit, let oldest = cellsCacheKeys.first {
+            cellsCache.removeValue(forKey: oldest)
+            cellsCacheKeys.removeFirst()
+        }
+        cellsCache[key] = made
+        cellsCacheKeys.append(key)
+        return made
+    }
+
     static func layoutCells(layout: GridLayout,
-                            now: Date,
+                            year: Int,
                             sequentialColumns: Int,
                             monthsPerRow: Int) -> Cells {
 
         let calendar = FlowMath.calendar
-        let year = calendar.component(.year, from: now)
         let total = FlowMath.dayCount(year)
-        let todayIdx = FlowMath.todayIndex(now: now)
-
-        func state(_ i: Int) -> FlowMath.DotState {
-            if i < todayIdx { return .past }
-            if i == todayIdx { return .today }
-            return .future
-        }
 
         switch layout {
 
         case .sequential:
             let cols = max(1, sequentialColumns)
-            var dots: [Dot] = []
+            var dots: [Cell] = []
             dots.reserveCapacity(total)
             for i in 0..<total {
-                dots.append(Dot(col: i % cols, row: i / cols, state: state(i)))
+                dots.append(Cell(col: i % cols, row: i / cols, day: i))
             }
             let rows = (total + cols - 1) / cols
             return Cells(dots: dots, unitColumns: cols, unitRows: rows)
@@ -125,8 +166,10 @@ public struct DotGrid: View {
             let perRow = max(1, monthsPerRow)
             let blockRowsCount = (12 + perRow - 1) / perRow
 
-            var dots: [Dot] = []
+            var dots: [Cell] = []
             dots.reserveCapacity(total)
+
+            let jan1 = FlowMath.yearStart(year)
 
             for month in 1...12 {
                 let blockIndex = month - 1
@@ -146,13 +189,13 @@ public struct DotGrid: View {
                 let weekday = calendar.component(.weekday, from: firstOfMonth)
                 let mondayIndex = (weekday + 5) % 7
 
-                let startDayIndex = calendar.dateComponents([.day], from: FlowMath.yearStart(year), to: firstOfMonth).day ?? 0
+                let startDayIndex = calendar.dateComponents([.day], from: jan1, to: firstOfMonth).day ?? 0
 
                 for d in 0..<daysInMonth {
                     let slot = mondayIndex + d
                     let col = originCol + slot % 7
                     let row = originRow + slot / 7
-                    dots.append(Dot(col: col, row: row, state: state(startDayIndex + d)))
+                    dots.append(Cell(col: col, row: row, day: startDayIndex + d))
                 }
             }
 
@@ -186,6 +229,9 @@ public struct DotCard: View {
         self.monthsPerRow = monthsPerRow
     }
 
+    /// 卡片内侧留白。圆角 = 卡片圆角 - 内边距，这样弧线同心。
+    private let inset: CGFloat = 16
+
     public var body: some View {
         VStack(spacing: 12) {
             HStack {
@@ -204,10 +250,10 @@ public struct DotCard: View {
                     monthsPerRow: monthsPerRow)
                 .frame(height: height)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, inset)
         .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: FlowRadius.card, style: .continuous)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
     }

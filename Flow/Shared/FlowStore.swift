@@ -28,6 +28,10 @@ public final class FlowStore: ObservableObject {
     // MARK: - 设置项
 
     /// 外观：浅色 / 深色 / 跟随系统
+    ///
+    /// 这里只负责存。真正去改窗口配色的是 App 层（App/AppearanceBridge.swift），
+    /// 因为小组件 target 也编译这个文件，而小组件里不能碰 UIApplication，
+    /// 所以跨 target 的共用代码不能引用 UIWindow 相关的东西。
     @Published public var appearance: Appearance {
         didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
     }

@@ -5,10 +5,27 @@ public enum FlowMath {
 
     // MARK: - 基础
 
+    /// 缓存的日历实例。
+    ///
+    /// 原来这里是 computed property，每读一次就 `Calendar(identifier:)` 建一个新的
+    /// —— 这个构造内部要走 ICU 的初始化，不便宜。而日历排列一次布局要点十几次
+    /// （12 个月 × 每月取天数/首日星期/年内偏移），加上圆点卡片每秒重绘，
+    /// 累积起来是切外观时肉眼可见的卡顿来源之一。
+    ///
+    /// 缓存 + 时区变了才重建：跨时区飞行、手动改时区都能正确跟上。
+    private static var cachedCalendar: Calendar?
+    private static var cachedTimeZoneID: String?
+
     public static var calendar: Calendar {
+        let zoneID = TimeZone.current.identifier
+        if let cached = cachedCalendar, cachedTimeZoneID == zoneID {
+            return cached
+        }
         var c = Calendar(identifier: .gregorian)
         c.firstWeekday = 2          // 周一为一周开始
-        c.timeZone = .current
+        c.timeZone = TimeZone(identifier: zoneID) ?? .current
+        cachedCalendar = c
+        cachedTimeZoneID = zoneID
         return c
     }
 
