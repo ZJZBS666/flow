@@ -315,7 +315,7 @@ private struct AccessoryCalendarRectangularView: View {
             // 左边一列：三行共用同一条竖直轴心（居中，不靠左，避免字形左边距造成的错位）
             VStack(spacing: 0) {
                 Text(verbatim: String(g.year))
-                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                    .font(.system(size: 10, weight: .bold).monospacedDigit())
                     .foregroundStyle(.secondary)
 
                 Spacer(minLength: 2)
@@ -353,14 +353,18 @@ private struct AccessoryCalendarRectangularView: View {
                                 if isToday {
                                     // 白圆盖住，数字用 destinationOut 从圆上「挖」掉，
                                     // 透出的是壁纸本身，不是画上去的颜色。
+                                    // 圆径 13.5 是「列宽 17.4 减去两侧留白」的上限：
+                                    // 再大就会和左右两格挤在一起，看着发闷。
+                                    // 数字上移 0.5pt 抵消字体下伸部造成的视觉偏下。
                                     ZStack {
                                         Circle().fill(.white)
                                         Text(verbatim: String(cell.day))
                                             .font(.system(size: 9.5, weight: .bold).monospacedDigit())
+                                            .offset(y: -0.5)
                                             .blendMode(.destinationOut)
                                     }
                                     .compositingGroup()
-                                    .frame(width: 14, height: 14)
+                                    .frame(width: 13.5, height: 13.5)
                                 } else {
                                     Text(verbatim: String(cell.day))
                                         .font(.system(size: 9.5).monospacedDigit())
