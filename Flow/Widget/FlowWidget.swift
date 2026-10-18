@@ -348,17 +348,23 @@ private struct AccessoryCalendarRectangularView: View {
                             let isToday = cell.inMonth && cell.day == g.today
                             ZStack {
                                 if isToday {
-                                    Circle()
-                                        .fill(accent)
-                                        .frame(width: 12, height: 12)
-                                        .widgetAccentable()
+                                    // 白圆盖住，数字用 destinationOut 从圆上「挖」掉，
+                                    // 这样透过数字看到的是壁纸本身，不是画上去的颜色。
+                                    ZStack {
+                                        Circle().fill(.white)
+                                        Text("\(cell.day)")
+                                            .font(.system(size: 8.5, weight: .bold).monospacedDigit())
+                                            .blendMode(.destinationOut)
+                                    }
+                                    .compositingGroup()
+                                    .frame(width: 12, height: 12)
+                                } else {
+                                    Text("\(cell.day)")
+                                        .font(.system(size: 8.5).monospacedDigit())
+                                        .foregroundStyle(cell.inMonth
+                                                         ? Color.primary
+                                                         : Color.secondary.opacity(0.5))
                                 }
-                                Text("\(cell.day)")
-                                    .font(.system(size: 8.5, weight: isToday ? .bold : .regular)
-                                        .monospacedDigit())
-                                    .foregroundStyle(isToday
-                                                     ? Color.black
-                                                     : (cell.inMonth ? Color.primary : Color.secondary.opacity(0.5)))
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: 13)
