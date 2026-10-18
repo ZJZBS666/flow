@@ -229,6 +229,7 @@ struct FlowWidgetEntryView: View {
 struct FlowWidgetBundle: WidgetBundle {
     var body: some Widget {
         FlowWidget()
+        FlowCalendarWidget()
     }
 }
 
@@ -248,5 +249,173 @@ struct FlowWidget: Widget {
             .accessoryCircular, .accessoryRectangular, .accessoryInline
         ])
         .contentMarginsDisabled()
+    }
+}
+
+// MARK: - Flow 日历（第二种锁屏组件）
+
+/// 当月日历网格。
+///
+/// 和 `FlowMath.calendar` 不同：这里**周日排第一列**（日一二三四五六），
+/// 跟 iPhone 自带日历锁屏组件一致。`FlowMath.calendar` 是周一开头，
+/// 那是给「年度日历排列」用的，两处需求不一样，别混。
+private struct MonthGrid {
+    let headers = ["日", "一", "二", "三", "四", "五", "六"]
+    let weeks: [[Int?]]
+    let today: Int
+    let month: Int
+
+    init(now: Date) {
+        let cal = FlowMath.calendar
+        let first = cal.date(from: DateComponents(year: cal.component(.year, from: now),
+                                                  month: cal.component(.month, from: now),
+                                                  day: 1)) ?? now
+        let dayCount = cal.range(of: .day, in: .month, for: first)?.count ?? 30
+        // Calendar.component(.weekday) 不受 firstWeekday 影响：1 = 周日 … 7 = 周六
+        let weekdayOfFirst = cal.component(.weekday, from: first)
+        let lead = weekdayOfFirst - 1
+
+        var flat: [Int?] = Array(repeating: nil, count: lead)
+        flat.append(contentsOf: (1...dayCount).map { Optional($0) })
+        while flat.count % 7 != 0 { flat.append(nil) }
+
+        var result: [[Int?]] = []
+        var i = 0
+        while i < flat.count {
+            result.append(Array(flat[i..<min(i + 7, flat.count)]))
+            i += 7
+        }
+
+        weeks = result
+        today = cal.component(.day, from: now)
+        month = cal.component(.month, from: now)
+    }
+}
+
+/// 锁屏长方形 · 日历版：左边大号日号，右边当月小日历，今天加一个圈。
+private struct AccessoryCalendarRectangularView: View {
+    let now: Date
+    let accent: Color
+
+    private var grid: MonthGrid { MonthGrid(now: now) }
+
+    var body: some View {
+        let g = grid
+
+        HStack(alignment: .center, spacing: 9) {
+            // 左边：大号日号
+            VStack(spacing: -2) {
+                Text("\(g.today)")
+                    .font(.system(size: 27, weight: .bold, design: .rounded).monospacedDigit())
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .widgetAccentable()
+                Text("\(g.month)月")
+                    .font(.system(size: 7))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 30)
+
+            // 右边：当月日历格
+            VStack(spacing: 0.5) {
+                HStack(spacing: 0) {
+                    ForEach(g.headers, id: \.self) { h in
+                        Text(h)
+                            .font(.system(size: 6.5))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+
+                ForEach(g.weeks.indices, id: \.self) { rowIndex in
+                    HStack(spacing: 0) {
+                        ForEach(0..<7, id: \.self) { colIndex in
+                            let day = g.weeks[rowIndex][colIndex]
+                            ZStack {
+                                if let day = day {
+                                    if day == g.today {
+                                        Circle()
+                                            .strokeBorder(accent, lineWidth: 1)
+                                            .widgetAccentable()
+                                    }
+                                    Text("\(day)")
+                                        .font(.system(size: 7.5, weight: day == g.today ? .bold : .regular)
+                                            .monospacedDigit())
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 9)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+/// 锁屏圆形 · 日历版：就一个大号日号。
+private struct AccessoryCalendarCircularView: View {
+    let now: Date
+
+    var body: some View {
+        let cal = FlowMath.calendar
+        let day = cal.component(.day, from: now)
+        let month = cal.component(.month, from: now)
+
+        VStack(spacing: -1) {
+            Text("\(day)")
+                .font(.system(size: 20, weight: .bold, design: .rounded).monospacedDigit())
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .widgetAccentable()
+            Text("\(month)月")
+                .font(.system(size: 7))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+struct FlowCalendarEntryView: View {
+    @Environment(\.widgetFamily) private var family
+    var entry: FlowEntry
+
+    var body: some View {
+        content
+            .containerBackground(for: .widget) {
+                if family == .accessoryCircular {
+                    AccessoryWidgetBackground()
+                } else if family == .accessoryRectangular {
+                    Color.clear
+                } else {
+                    Color(.secondarySystemGroupedBackground)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch family {
+        case .accessoryRectangular:
+            AccessoryCalendarRectangularView(now: entry.date, accent: FlowStore.shared.accentColor)
+        case .accessoryCircular:
+            AccessoryCalendarCircularView(now: entry.date)
+        default:
+            AccessoryCalendarRectangularView(now: entry.date, accent: FlowStore.shared.accentColor)
+        }
+    }
+}
+
+/// 第二种锁屏组件：日历样式。和上面的 Flow 并列出现在组件库里。
+struct FlowCalendarWidget: Widget {
+    let kind = "FlowCalendarWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: FlowProvider()) { entry in
+            FlowCalendarEntryView(entry: entry)
+        }
+        .configurationDisplayName("Flow 日历")
+        .description("锁屏上显示当月日历，今天带一个圈。")
+        .supportedFamilies([.accessoryRectangular, .accessoryCircular])
     }
 }
