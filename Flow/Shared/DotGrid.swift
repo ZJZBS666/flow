@@ -116,25 +116,39 @@ public struct DotGrid: View {
     private static var cellsCacheKeys: [String] = []
     private static let cellsCacheLimit = 8
 
+    /// 小组件的渲染不保证在主线程上，字典不是线程安全的，这里加把锁。
+    /// 锁只包住「查表 / 写表」那一小段，真正的布局计算放在锁外面做，
+    /// 不会被锁拖慢，也不会出现锁嵌套。
+    private static let cellsLock = NSLock()
+
     static func cachedCells(layout: GridLayout,
                             year: Int,
                             sequentialColumns: Int,
                             monthsPerRow: Int) -> Cells {
         let key = "\(layout.rawValue)-\(year)-\(sequentialColumns)-\(monthsPerRow)"
-        if let hit = cellsCache[key] { return hit }
+
+        cellsLock.lock()
+        let hit = cellsCache[key]
+        cellsLock.unlock()
+        if let hit { return hit }
 
         let made = layoutCells(layout: layout,
                               year: year,
                               sequentialColumns: sequentialColumns,
                               monthsPerRow: monthsPerRow)
 
-        // 简单 FIFO，超过上限先丢最老的
-        if cellsCacheKeys.count >= cellsCacheLimit, let oldest = cellsCacheKeys.first {
-            cellsCache.removeValue(forKey: oldest)
-            cellsCacheKeys.removeFirst()
+        cellsLock.lock()
+        if cellsCache[key] == nil {
+            // 简单 FIFO，超过上限先丢最老的
+            if cellsCacheKeys.count >= cellsCacheLimit, let oldest = cellsCacheKeys.first {
+                cellsCache.removeValue(forKey: oldest)
+                cellsCacheKeys.removeFirst()
+            }
+            cellsCache[key] = made
+            cellsCacheKeys.append(key)
         }
-        cellsCache[key] = made
-        cellsCacheKeys.append(key)
+        cellsLock.unlock()
+
         return made
     }
 

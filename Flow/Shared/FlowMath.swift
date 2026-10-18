@@ -15,17 +15,28 @@ public enum FlowMath {
     /// 缓存 + 时区变了才重建：跨时区飞行、手动改时区都能正确跟上。
     private static var cachedCalendar: Calendar?
     private static var cachedTimeZoneID: String?
+    /// 小组件渲染不保证在主线程上，加把锁避免并发写坏这个缓存
+    private static let calendarLock = NSLock()
 
     public static var calendar: Calendar {
         let zoneID = TimeZone.current.identifier
+
+        calendarLock.lock()
         if let cached = cachedCalendar, cachedTimeZoneID == zoneID {
+            calendarLock.unlock()
             return cached
         }
+        calendarLock.unlock()
+
         var c = Calendar(identifier: .gregorian)
         c.firstWeekday = 2          // 周一为一周开始
         c.timeZone = TimeZone(identifier: zoneID) ?? .current
+
+        calendarLock.lock()
         cachedCalendar = c
         cachedTimeZoneID = zoneID
+        calendarLock.unlock()
+
         return c
     }
 
