@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_light">#F3F3F3</color>
+    <color name="bg_dark">#000000</color>
+
+    <!-- 启用自适应图标前先用这个做背景 -->
+    <color name="ic_launcher_background">#F3F3F3</color>
+
+    <!-- 桌面小组件 -->
+    <color name="widget_bg">#FFFFFF</color>
+    <color name="widget_text">#000000</color>
+    <color name="widget_text_secondary">#8A8A8E</color>
+</resources>

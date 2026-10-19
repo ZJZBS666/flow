@@ -1,0 +1,94 @@
+name: Build Flow Android (APK)
+
+# 在云端 Ubuntu 上把 Kotlin + Compose 代码编译成 APK。
+# ubuntu-latest 自带 Android SDK，所以本机不需要装 2GB 的 SDK。
+# 安卓侧载不需要证书、不会过期，装完就能一直用。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-android.yml'
+
+jobs:
+  build:
+    name: 编译 APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: 显示编译环境
+        run: |
+          java -version
+          gradle --version | head -n 12
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" || true
+          ls "$ANDROID_HOME/build-tools" || true
+
+      # 和 iOS 那个工作流一样：GitHub Actions 用 bash -e，任何非 0 立刻退出，
+      # 后面的错误上报根本不会跑。所以先 set +e，再把错误塞进注解。
+      - name: 编译 debug APK
+        working-directory: android
+        run: |
+          set +e
+          gradle assembleDebug --no-daemon --stacktrace > build.log 2>&1
+          STATUS=$?
+          tail -n 60 build.log
+
+          if [ "$STATUS" -ne 0 ]; then
+            ERR=$(grep -iE "^e: |error:|FAILURE:|What went wrong|Caused by" build.log | head -n 14 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
+            if [ -z "$ERR" ]; then
+              ERR=$(tail -n 14 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
+            fi
+            echo "::error title=gradle 编译失败 exit=$STATUS::${ERR}"
+            exit "$STATUS"
+          fi
+          echo "编译成功"
+
+      - name: 检查 APK 内容
+        working-directory: android
+        run: |
+          set +e
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          if [ ! -f "$APK" ]; then
+            echo "===== 没找到 APK，产物目录如下 ====="
+            find app/build/outputs -maxdepth 4 || true
+            echo "::error title=找不到 app-debug.apk::见构建日志"
+            exit 1
+          fi
+          ls -lh "$APK"
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | tail -n 1)
+          "$AAPT" dump badging "$APK" 2>/dev/null | grep -E "package:|application-label|sdkVersion|targetSdkVersion" || true
+          echo "===== APK 结构 ====="
+          unzip -l "$APK" | head -n 30
+
+      - name: 重命名并上传
+        working-directory: android
+        run: |
+          mkdir -p ../output
+          cp app/build/outputs/apk/debug/app-debug.apk ../output/Flow-1.0.3.apk
+          ls -lh ../output
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Flow-android-apk
+          path: output/Flow-1.0.3.apk
+          if-no-files-found: error
+          retention-days: 90

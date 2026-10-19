@@ -10,6 +10,11 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    # 只改 android/ 目录时不要触发这个 iOS 编译
+    paths:
+      - 'Flow/**'
+      - 'project.yml'
+      - '.github/workflows/build.yml'
 
 jobs:
   build:

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Flow</string>
+
+    <string name="widget_small_name">Flow 小</string>
+    <string name="widget_medium_name">Flow 中</string>
+    <string name="widget_large_name">Flow 大</string>
+</resources>
