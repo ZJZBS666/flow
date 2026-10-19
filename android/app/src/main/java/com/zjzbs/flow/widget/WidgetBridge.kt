@@ -158,9 +158,24 @@ object WidgetBridge {
         size: WidgetSize,
     ): Pair<Int, Int> {
         val opts = runCatching { mgr.getAppWidgetOptions(id) }.getOrNull()
-        val w = opts?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0
-        val h = opts?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0
+        val minW = opts?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0
+        val maxW = opts?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH) ?: 0
+        val minH = opts?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT) ?: 0
+        val maxH = opts?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT) ?: 0
+
+        // 竖屏 = MIN_WIDTH × MAX_HEIGHT，横屏 = MAX_WIDTH × MIN_HEIGHT。
+        // （以前错用了 MIN_WIDTH × MIN_HEIGHT，竖屏下高度偏小，
+        //   位图被 fitXY 横向拉长，圆点就变成椭圆了。）
+        val portrait = context.resources.configuration.orientation !=
+            Configuration.ORIENTATION_LANDSCAPE
+        val w = if (portrait) minW else maxW
+        val h = if (portrait) maxH else minH
         if (w > 0 && h > 0) return w to h
+
+        // 四向都拿不到时退回单向组合
+        val w2 = minW.takeIf { it > 0 } ?: maxW
+        val h2 = maxH.takeIf { it > 0 } ?: minH
+        if (w2 > 0 && h2 > 0) return w2 to h2
         // 拿不到就退回设计尺寸
         return when (size) {
             WidgetSize.Small -> 110 to 110
