@@ -9,6 +9,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.widget.RemoteViews
+import androidx.compose.ui.graphics.toArgb
 import com.zjzbs.flow.MainActivity
 import com.zjzbs.flow.R
 import com.zjzbs.flow.data.FlowPrefs
@@ -110,7 +111,9 @@ object WidgetBridge {
         night: Boolean,
         now: ZonedDateTime,
     ): Bitmap {
-        val accent = parseHex(accentHex)
+        // 注意：这里统一用 android.graphics.Color 的 Int 值。
+        // parseHex 返回的是 Compose 的 Color，要先 toArgb()。
+        val accent = parseHex(accentHex).toArgb()
         val primary = if (night) Color.WHITE else Color.BLACK
         val past = if (colorPastDots) accent else primary
         val future = Color.argb(38, Color.red(primary), Color.green(primary), Color.blue(primary))
