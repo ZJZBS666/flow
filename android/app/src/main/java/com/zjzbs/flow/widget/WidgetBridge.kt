@@ -118,15 +118,17 @@ object WidgetBridge {
         val past = if (colorPastDots) accent else primary
         val future = Color.argb(38, Color.red(primary), Color.green(primary), Color.blue(primary))
 
-        val columns = when (size) {
-            WidgetSize.Small -> 16
-            WidgetSize.Medium -> 30
-            WidgetSize.Large -> 20
-        }
-        val monthsPerRow = when (size) {
-            WidgetSize.Small -> 3
-            WidgetSize.Medium -> 6
-            WidgetSize.Large -> 4
+        // 列数按「点阵区域的宽高比」算出来，这样点阵能真正铺满整块卡片，
+        // 不会像固定列数那样在两边留一大条空白。
+        // 365 天排成 cols × rows，让 cols/rows ≈ 宽高比即可：cols ≈ sqrt(365 * aspect)。
+        val aspect = (width / height.coerceAtLeast(1f)).coerceIn(0.5f, 6f)
+        val columns = kotlin.math.ceil(kotlin.math.sqrt(365.0 * aspect))
+            .toInt().coerceIn(12, 48)
+
+        val monthsPerRow = when {
+            aspect > 3.0f -> 6
+            aspect > 1.6f -> 4
+            else -> 3
         }
 
         val year = now.year
@@ -147,6 +149,7 @@ object WidgetBridge {
             futureColor = future,
             todayColor = accent,
             dotScale = DotGridLayout.DOT_SCALE,
+            stretchToFill = true,
         )
         return bmp
     }

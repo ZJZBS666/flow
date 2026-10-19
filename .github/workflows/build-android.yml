@@ -17,6 +17,8 @@ jobs:
     name: 编译 APK
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: write
 
     steps:
       - name: 拉取代码
@@ -33,6 +35,28 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      # release 包需要一个固定的签名密钥，否则每次编译出来的 key 都不一样，
+      # 手机上就没法覆盖安装。这里第一次运行时生成一个并提交回仓库，之后一直复用。
+      - name: 确保签名密钥存在
+        run: |
+          set -e
+          if [ -f android/app/flow-release.jks ]; then
+            echo "已有签名密钥，复用"
+            exit 0
+          fi
+          echo "第一次运行：生成签名密钥并提交"
+          keytool -genkeypair \
+            -keystore android/app/flow-release.jks \
+            -alias flow \
+            -keyalg RSA -keysize 2048 -validity 10950 \
+            -storepass flowflow -keypass flowflow \
+            -dname "CN=Flow, OU=Personal, O=Flow, L=Beijing, ST=Beijing, C=CN"
+          git config user.name  "flow-bot"
+          git config user.email "flow-bot@users.noreply.github.com"
+          git add -f android/app/flow-release.jks
+          git commit -m "生成安卓 release 签名密钥（一次性）"
+          git push || echo "推送失败（可能无权限），本次仍用新生成的密钥编译"
+
       - name: 显示编译环境
         run: |
           java -version
@@ -43,16 +67,16 @@ jobs:
 
       # 和 iOS 那个工作流一样：GitHub Actions 用 bash -e，任何非 0 立刻退出，
       # 后面的错误上报根本不会跑。所以先 set +e，再把错误塞进注解。
-      - name: 编译 debug APK
+      - name: 编译 release APK
         working-directory: android
         run: |
           set +e
-          gradle assembleDebug --no-daemon --stacktrace > build.log 2>&1
+          gradle assembleRelease --no-daemon --stacktrace > build.log 2>&1
           STATUS=$?
           tail -n 60 build.log
 
           if [ "$STATUS" -ne 0 ]; then
-            ERR=$(grep -iE "^e: |error:|FAILURE:|What went wrong|Caused by" build.log | head -n 14 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
+            ERR=$(grep -iE "^e: |error:|FAILURE:|What went wrong|Caused by|R8" build.log | head -n 14 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
             if [ -z "$ERR" ]; then
               ERR=$(tail -n 14 build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | tr '\n' '|' | cut -c1-3000)
             fi
@@ -65,11 +89,11 @@ jobs:
         working-directory: android
         run: |
           set +e
-          APK=app/build/outputs/apk/debug/app-debug.apk
+          APK=app/build/outputs/apk/release/app-release.apk
           if [ ! -f "$APK" ]; then
             echo "===== 没找到 APK，产物目录如下 ====="
             find app/build/outputs -maxdepth 4 || true
-            echo "::error title=找不到 app-debug.apk::见构建日志"
+            echo "::error title=找不到 app-release.apk::见构建日志"
             exit 1
           fi
           ls -lh "$APK"
@@ -82,7 +106,7 @@ jobs:
         working-directory: android
         run: |
           mkdir -p ../output
-          cp app/build/outputs/apk/debug/app-debug.apk ../output/Flow-1.0.3.apk
+          cp app/build/outputs/apk/release/app-release.apk ../output/Flow-1.0.3.apk
           ls -lh ../output
 
       - name: 上传 APK

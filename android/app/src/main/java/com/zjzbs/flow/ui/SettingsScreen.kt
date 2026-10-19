@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -110,19 +111,31 @@ fun SettingsScreen(onClose: () -> Unit) {
             // ---------- 主题颜色 ----------
             SectionHeader("主题颜色")
             SettingsGroup {
-                Row(
+                // 8 个色块一排放不下时（窄屏），按可用宽度均分，而不是让最后几个被挤扁。
+                BoxWithConstraints(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
                 ) {
-                    FlowSettings.PALETTE.forEach { hex ->
-                        ColorSwatch(
-                            hex = hex,
-                            selected = settings.accentHex.equals(hex, ignoreCase = true),
-                            onClick = { FlowStore.accentHex = hex },
-                        )
+                    val palette = FlowSettings.PALETTE
+                    val gap = 4.dp
+                    val cell = (maxWidth - gap * (palette.size - 1)) / palette.size
+                    val swatch = minOf(42.dp, cell)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(gap),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        palette.forEach { hex ->
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                ColorSwatch(
+                                    hex = hex,
+                                    selected = settings.accentHex.equals(hex, ignoreCase = true),
+                                    onClick = { FlowStore.accentHex = hex },
+                                    size = swatch,
+                                )
+                            }
+                        }
                     }
                 }
             }

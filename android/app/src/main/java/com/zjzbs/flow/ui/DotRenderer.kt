@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -49,25 +50,43 @@ object DotRenderer {
         futureColor: Int,
         todayColor: Int,
         dotScale: Float = DotGridLayout.DOT_SCALE,
+        stretchToFill: Boolean = false,
     ) {
         if (width <= 0f || height <= 0f) return
         if (cells.unitColumns <= 0 || cells.unitRows <= 0) return
 
-        val unit = minOf(width / cells.unitColumns, height / cells.unitRows)
-        if (unit <= 0f) return
+        val pitchX: Float
+        val pitchY: Float
+        val originX: Float
+        val originY: Float
 
-        val gridW = unit * cells.unitColumns
-        val gridH = unit * cells.unitRows
-        val originX = (width - gridW) / 2f
-        val originY = (height - gridH) / 2f
-        val radius = maxOf(0.4f, unit * dotScale / 2f)
+        if (stretchToFill) {
+            // 桌面小组件用：横竖各自铺满整张位图，不留边。
+            // 位图会被 ImageView 等比缩放到实际卡片上，所以这里先按位图尺寸铺满，
+            // 屏幕上就基本是满的；点画成椭圆，用来抵消缩放比例的细微差别。
+            pitchX = width / cells.unitColumns
+            pitchY = height / cells.unitRows
+            originX = 0f
+            originY = 0f
+        } else {
+            // App 里用：正方形格子、整体居中，点必须是正圆。
+            val unit = minOf(width / cells.unitColumns, height / cells.unitRows)
+            pitchX = unit
+            pitchY = unit
+            originX = (width - unit * cells.unitColumns) / 2f
+            originY = (height - unit * cells.unitRows) / 2f
+        }
+        if (pitchX <= 0f || pitchY <= 0f) return
+
+        val rx = maxOf(0.4f, pitchX * dotScale / 2f)
+        val ry = maxOf(0.4f, pitchY * dotScale / 2f)
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
         // 按颜色分三遍画。365 颗点分三组，比逐颗切换画笔状态快得多。
-        drawPass(canvas, paint, cells, originX, originY, unit, radius, pastColor) { it < todayIdx }
-        drawPass(canvas, paint, cells, originX, originY, unit, radius, futureColor) { it > todayIdx }
-        drawPass(canvas, paint, cells, originX, originY, unit, radius, todayColor) { it == todayIdx }
+        drawPass(canvas, paint, cells, originX, originY, pitchX, pitchY, rx, ry, pastColor) { it < todayIdx }
+        drawPass(canvas, paint, cells, originX, originY, pitchX, pitchY, rx, ry, futureColor) { it > todayIdx }
+        drawPass(canvas, paint, cells, originX, originY, pitchX, pitchY, rx, ry, todayColor) { it == todayIdx }
     }
 
     private inline fun drawPass(
@@ -76,17 +95,23 @@ object DotRenderer {
         cells: GridCells,
         originX: Float,
         originY: Float,
-        unit: Float,
-        radius: Float,
+        pitchX: Float,
+        pitchY: Float,
+        rx: Float,
+        ry: Float,
         color: Int,
         crossinline predicate: (Int) -> Boolean,
     ) {
         paint.color = color
         for (dot in cells.dots) {
             if (!predicate(dot.day)) continue
-            val cx = originX + (dot.col + 0.5f) * unit
-            val cy = originY + (dot.row + 0.5f) * unit
-            canvas.drawCircle(cx, cy, radius, paint)
+            val cx = originX + (dot.col + 0.5f) * pitchX
+            val cy = originY + (dot.row + 0.5f) * pitchY
+            if (rx == ry) {
+                canvas.drawCircle(cx, cy, rx, paint)
+            } else {
+                canvas.drawOval(cx - rx, cy - ry, cx + rx, cy + ry, paint)
+            }
         }
     }
 }
@@ -106,6 +131,20 @@ fun DotGridCanvas(
     val past = if (colorPastDots) accent else c.textPrimary.copy(alpha = 0.92f)
     val future = c.textPrimary.copy(alpha = 0.13f)
 
+    // 点阵排布一年才变一次，不要在每帧绘制里重算（滚动时 Canvas 每帧都会重画）。
+    val cells = remember(layout, now.year, sequentialColumns, monthsPerRow) {
+        DotGridLayout.cells(
+            layout = layout,
+            year = now.year,
+            sequentialColumns = sequentialColumns,
+            monthsPerRow = monthsPerRow,
+        )
+    }
+    val todayIdx = remember(now.year, now.dayOfYear) { FlowMath.todayIndex(now) }
+    val pastArgb = past.toArgb()
+    val futureArgb = future.toArgb()
+    val accentArgb = accent.toArgb()
+
     Canvas(
         modifier.semantics {
             contentDescription =
@@ -113,21 +152,15 @@ fun DotGridCanvas(
         }
     ) {
         drawIntoCanvas { canvas ->
-            val cells = DotGridLayout.cells(
-                layout = layout,
-                year = now.year,
-                sequentialColumns = sequentialColumns,
-                monthsPerRow = monthsPerRow,
-            )
             DotRenderer.draw(
                 canvas = canvas.nativeCanvas,
                 width = size.width,
                 height = size.height,
                 cells = cells,
-                todayIdx = FlowMath.todayIndex(now),
-                pastColor = past.toArgb(),
-                futureColor = future.toArgb(),
-                todayColor = accent.toArgb(),
+                todayIdx = todayIdx,
+                pastColor = pastArgb,
+                futureColor = futureArgb,
+                todayColor = accentArgb,
             )
         }
     }

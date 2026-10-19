@@ -36,8 +36,28 @@ object FlowStore {
         if (next == settings) return
         settings = next
         FlowPrefs.write(prefs, next)
-        WidgetBridge.refreshAll(appContext)
+        scheduleWidgetRefresh()
     }
+
+    /**
+     * 小组件刷新要重新画 3 张位图（每张 365 个点），在主线程做会明显掉帧。
+     * 所以丢到后台线程，并且做 150ms 去抖 —— 连续点几个色块只算一次。
+     */
+    @Synchronized
+    private fun scheduleWidgetRefresh() {
+        if (!::appContext.isInitialized) return
+        pendingRefresh?.cancel(false)
+        pendingRefresh = scheduler.schedule({
+            runCatching { WidgetBridge.refreshAll(appContext) }
+        }, 150, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    private val scheduler =
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r ->
+            Thread(r, "flow-widget-refresh").apply { isDaemon = true }
+        }
+
+    private var pendingRefresh: java.util.concurrent.ScheduledFuture<*>? = null
 
     // ---- 便捷设置项 ----
 

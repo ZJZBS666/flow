@@ -4,6 +4,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// release 签名用的密钥文件（由 CI 第一次运行时生成并提交到仓库）。
+// 放在 android/app/ 下，所以这里相对本文件解析。
+val releaseKeyStore = file("flow-release.jks")
+val hasReleaseKey = releaseKeyStore.exists()
+
 android {
     namespace = "com.zjzbs.flow"
     compileSdk = 34
@@ -12,16 +17,38 @@ android {
         applicationId = "com.zjzbs.flow"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
+        versionCode = 12
         versionName = "1.0.3"
+    }
+
+    signingConfigs {
+        create("release") {
+            // 侧载自用，不走商店，所以密钥提交在仓库里也无所谓；
+            // 好处是每版签名一致，手机上可以直接覆盖安装。
+            if (hasReleaseKey) {
+                storeFile = releaseKeyStore
+                storePassword = "flowflow"
+                keyAlias = "flow"
+                keyPassword = "flowflow"
+            }
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 打开 R8 混淆 + 资源压缩。debug 包的 Compose 没做任何优化，
+            // 在手机上会明显掉帧；release 包顺滑得多。
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            if (hasReleaseKey) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
-            // 调试包自带签名，可直接侧载安装，不需要任何证书
             isMinifyEnabled = false
         }
     }

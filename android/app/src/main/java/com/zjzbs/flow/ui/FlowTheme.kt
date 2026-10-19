@@ -200,6 +200,9 @@ fun <T> SegmentedControl(
  * 主题色圆点。
  * 选中时外面套一圈描边 —— 对应 iOS 版 `padding(-4.5)` 的做法，
  * 描边在圆的外面，所以整格做成 42dp、圆本身 33dp。
+ *
+ * [size] 可以调小：屏幕窄、8 个色块一排放不下时，由调用方算一个更小的尺寸进来，
+ * 否则这一行的最后几个会被挤扁。
  */
 @Composable
 fun ColorSwatch(
@@ -207,9 +210,11 @@ fun ColorSwatch(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    size: Dp = 42.dp,
 ) {
     val c = LocalFlowColors.current
-    Box(modifier.size(42.dp), contentAlignment = Alignment.Center) {
+    val inner = size * 0.786f
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
         if (selected) {
             Box(
                 Modifier
@@ -219,7 +224,7 @@ fun ColorSwatch(
         }
         Box(
             Modifier
-                .size(33.dp)
+                .size(inner)
                 .clip(CircleShape)
                 .background(parseHex(hex))
                 .clickable(onClick = onClick)
