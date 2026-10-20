@@ -1,14 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg">
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingLeft="11dp"
+    android:paddingTop="10dp"
+    android:paddingRight="11dp"
+    android:paddingBottom="10dp">
+
+    <!-- 2×2 也有年份和天数，只是字号比中/大号小一号 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_year"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="9sp" />
+
+        <TextView
+            android:id="@+id/widget_counter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:textColor="@color/widget_text_secondary"
+            android:textSize="9sp" />
+    </LinearLayout>
 
     <ImageView
         android:id="@+id/widget_image"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="5dp"
+        android:layout_weight="1"
         android:contentDescription="@null"
         android:scaleType="fitXY" />
 
-</FrameLayout>
+</LinearLayout>

@@ -5,4 +5,5 @@
     <string name="widget_small_name">Flow 小</string>
     <string name="widget_medium_name">Flow 中</string>
     <string name="widget_large_name">Flow 大</string>
+    <string name="widget_description">今年进度圆点</string>
 </resources>

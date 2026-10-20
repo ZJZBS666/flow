@@ -63,16 +63,16 @@ object WidgetBridge {
             else -> RemoteViews(context.packageName, R.layout.widget_card)
         }
 
-        // 头部（小号没有头部）
-        if (size != WidgetSize.Small) {
-            views.setTextViewText(R.id.widget_year, FlowMath.yearLabel(now))
-            views.setTextViewText(R.id.widget_counter, FlowMath.dayCounterLabel(now))
-        }
+        // 头部：三种尺寸都有年份和天数（2×2 只是字号小一号）
+        views.setTextViewText(R.id.widget_year, FlowMath.yearLabel(now))
+        views.setTextViewText(R.id.widget_counter, FlowMath.dayCounterLabel(now))
 
-        // 点阵区域：扣掉内边距和头部高度（数字要和 widget_card.xml 里的 padding 对齐）
-        val padH = (if (size == WidgetSize.Small) 12f else 16f) * density
-        val padV = (if (size == WidgetSize.Small) 12f else 14f) * density
-        val header = if (size == WidgetSize.Small) 0f else 24f * density
+        // 点阵区域：扣掉内边距和头部高度（数字要和 widget_*.xml 里的 padding 对齐）
+        val padH = (if (size == WidgetSize.Small) 11f else 16f) * density
+        val padV = (if (size == WidgetSize.Small) 10f else 14f) * density
+        // 头部 = 字号行高 + 与点阵之间的 marginTop
+        // 小号 9sp 行高约 11dp + 5dp；中/大号 11sp 行高约 14dp + 9dp
+        val header = if (size == WidgetSize.Small) 16f * density else 23f * density
         val dotsW = (wPx - padH * 2).coerceAtLeast(8f)
         val dotsH = (hPx - padV * 2 - header).coerceAtLeast(8f)
 
