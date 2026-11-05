@@ -13,20 +13,10 @@ struct RootView: View {
     @State private var showSettings = false
 
     var body: some View {
-        // 每分钟整点刷新一次。
-        //
-        // 原来是一秒一次。但界面上最小的时间刻度是「今天」那行的整数百分比
-        // —— 一天 1440 分钟，1% 就是 14.4 分钟；大圆环的弧长一秒只挪 0.0000032 圈，
-        // 肉眼完全看不见。也就是说每秒重算一次纯属白烧，
-        // 而切深色/浅色那一下正好可能撞上一次重算。改成每分钟既能省掉 60 倍的开销，
-        // 显示上又没有任何区别。
         TimelineView(.everyMinute) { timeline in
             content(now: timeline.date)
         }
         .sheet(isPresented: $showSettings) {
-            // 外观不用 preferredColorScheme：那是「瞬间切换」的。
-            // 现在由 AppearanceTransition 改整个窗口的 overrideUserInterfaceStyle，
-            // 设置页也在这个窗口里，所以会跟着一起平滑过渡。
             SettingsView()
                 .environmentObject(store)
         }
@@ -43,90 +33,150 @@ struct RootView: View {
         ]
 
         return ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("FLOW")
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.primary)
+                            Text(verbatim: FlowMath.yearLabel(now: now))
+                                .font(.system(size: 12).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
 
-                    // 顶栏
-                    HStack {
-                        Text("FLOW")
-                            .font(.system(size: 13, weight: .semibold))
-                            .tracking(3.4)
-                            .foregroundStyle(.secondary)
-                        Spacer()
+                        Spacer(minLength: 0)
+
                         Button {
                             showSettings = true
                         } label: {
                             Image(systemName: "gearshape")
-                                .font(.system(size: 19))
+                                .font(.system(size: 16, weight: .medium))
                                 .foregroundStyle(.secondary)
+                                .frame(width: 36, height: 36)
+                                .background(
+                                    Circle()
+                                        .fill(Color(.secondarySystemGroupedBackground))
+                                )
                         }
+                        .buttonStyle(.plain)
                         .accessibilityLabel("设置")
                     }
-                    .padding(.horizontal, 30)
-                    .padding(.top, 8)
+                    .padding(.top, 12)
 
-                    Spacer(minLength: 28)
+                    YearOverview(
+                        progress: year,
+                        accent: accent,
+                        now: now,
+                        showsRing: store.showRing
+                    )
+                    .padding(.top, 24)
 
-                    // 大圆环
-                    if store.showRing {
-                        ZStack {
-                            RingProgress(progress: year, accent: accent, lineWidth: 15)
-                            VStack(spacing: 2) {
-                                Text(FlowMath.percent(year))
-                                    .font(.system(size: 50, weight: .bold).monospacedDigit())
-                                    .minimumScaleFactor(0.6)
-                                    .lineLimit(1)
-                                Text("\(FlowMath.yearLabel(now: now))年")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 40)
-                        }
-                        .frame(width: 191, height: 191)
-                        .padding(.bottom, 24)
-                    } else {
-                        Text(FlowMath.percent(year))
-                            .font(.system(size: 74, weight: .bold).monospacedDigit())
-                            .minimumScaleFactor(0.6)
-                            .lineLimit(1)
-                            .padding(.bottom, 6)
-                    }
-
-                    // 剩余天数
-                    Text(FlowMath.remainingLabel(now: now))
-                        .font(.system(size: 15))
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 30)
-
-                    // 四条进度
                     if store.showRows {
-                        VStack(spacing: 0) {
-                            ForEach(rows) { row in
-                                ProgressRow(label: row.label, progress: row.value, accent: accent)
-                                    .frame(height: 36)
-                            }
-                        }
-                        .padding(.horizontal, 30)
-                        .padding(.bottom, 32)
+                        ProgressRowsCard(rows: rows, accent: accent)
+                            .padding(.top, 20)
                     }
 
-                    // 圆点卡片
                     if store.showGrid {
-                        DotCard(layout: store.gridLayout,
-                                accent: accent,
-                                colorPastDots: store.colorPastDots,
-                                now: now,
-                                height: 188,
-                                columns: 24,
-                                monthsPerRow: 4)
-                            .padding(.horizontal, 30)
-                            .padding(.bottom, 40)
+                        DotCard(
+                            layout: store.gridLayout,
+                            accent: accent,
+                            colorPastDots: store.colorPastDots,
+                            now: now,
+                            height: 188,
+                            columns: 24,
+                            monthsPerRow: 4
+                        )
+                        .padding(.top, 20)
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 32)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+
+private struct YearOverview: View {
+    let progress: Double
+    let accent: Color
+    let now: Date
+    let showsRing: Bool
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                if showsRing {
+                    RingProgress(progress: progress, accent: accent, lineWidth: 12)
+                }
+
+                VStack(spacing: 2) {
+                    Text(verbatim: FlowMath.percent(progress))
+                        .font(.system(size: showsRing ? 31 : 52, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.65)
+                        .lineLimit(1)
+                    if showsRing {
+                        Text("今年")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(width: 120, height: 120)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("年度进度")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+
+                Text(FlowMath.remainingLabel(now: now))
+                    .font(.system(size: 17, weight: .medium))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(FlowMath.dayCounterLabel(now: now))
+                    .font(.system(size: 12).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, minHeight: 160, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: FlowRadius.card, style: .continuous)
+                .fill(Color(.secondarySystemGroupedBackground))
+        )
+    }
+}
+
+private struct ProgressRowsCard: View {
+    let rows: [ProgressItem]
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("时间尺度")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 0) {
+                ForEach(rows) { row in
+                    ProgressRow(label: row.label, progress: row.value, accent: accent)
+                        .frame(height: 36)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: FlowRadius.card, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
         }
     }
 }
